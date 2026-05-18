@@ -1,89 +1,68 @@
-import gzip
-import json
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Dict, List, Optional
-
+import yaml
 import torch
 from torch.utils.data import Dataset
 
+from datasets.preprocess import (
+    read_jsonl_gz,
+    kcore_filter,
+    encode_ids,
+    build_sequences,
+)
 
-class BaseDataset(Dataset, ABC):
-    """
-    Abstract base dataset for Amazon review + metadata datasets.
 
-    Expected files:
-        - review_file: review JSONL.GZ
-        - meta_file: metadata JSONL.GZ
-    """
+class Amazon2023Dataset(Dataset):
+    def __init__(self, config_path="configs/base.yaml"):
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
 
-    def __init__(
-        self,
-        review_file: str,
-        meta_file: str,
-        max_samples: Optional[int] = None,
-    ) -> None:
-        """
-        Args:
-            review_file: Path to Amazon review file.
-            meta_file: Path to Amazon metadata file.
-            max_samples: Optional sample limit for debugging.
-        """
-        self.review_file = Path(review_file)
-        self.meta_file = Path(meta_file)
-        self.max_samples = max_samples
+        with open("configs/fairness.yaml", "r", encoding="utf-8") as f:
+            fairness = yaml.safe_load(f)["fairness"]
 
-        self.reviews = self._load_jsonl_gz(self.review_file)
-        self.meta = self._load_jsonl_gz(self.meta_file)
+        dataset_cfg = cfg["dataset"]
 
-        self._build_index()
+        review_path = dataset_cfg["review_path"]
+        max_rows = dataset_cfg["max_rows"]
 
-    def _load_jsonl_gz(self, file_path: Path) -> List[Dict]:
-        """
-        Load compressed JSONL.GZ file.
-        """
-        data = []
+        k_core = fairness["k_core"]
+        max_seq_len = fairness["max_seq_len"]
+        time_buckets = dataset_cfg["time_buckets"]
 
-        with gzip.open(file_path, "rt", encoding="utf-8") as f:
-            for idx, line in enumerate(f):
-                data.append(json.loads(line))
+        self.max_seq_len = max_seq_len
 
-                if self.max_samples and idx + 1 >= self.max_samples:
-                    break
+        df = read_jsonl_gz(
+            review_path,
+            ["user_id", "parent_asin", "timestamp"],
+            max_rows=max_rows,
+        )
 
-        return data
+        df = df.dropna()
+        df = kcore_filter(df, k=k_core)
 
-    def _build_index(self) -> None:
-        """
-        Build metadata lookup by parent ASIN.
-        """
-        self.meta_lookup = {}
+        df, self.user_encoder, self.item_encoder = encode_ids(df)
 
-        for item in self.meta:
-            asin = item.get("parent_asin")
-            if asin:
-                self.meta_lookup[asin] = item
+        self.train_data, self.val_data, self.test_data = build_sequences(
+            df,
+            time_buckets,
+        )
 
-    def get_review_with_meta(self, idx: int) -> Dict:
-        """
-        Return merged review + metadata record.
-        """
-        review = self.reviews[idx]
-        parent_asin = review.get("parent_asin")
+        self.num_items = df["item"].max() + 1
 
-        meta = self.meta_lookup.get(parent_asin, {})
+    def __len__(self):
+        return len(self.train_data)
 
-        return {
-            "review": review,
-            "meta": meta,
-        }
+    def __getitem__(self, idx):
+        seq, time_seq, target = self.train_data[idx]
 
-    def __len__(self) -> int:
-        return len(self.reviews)
+        seq = seq[-self.max_seq_len:]
+        time_seq = time_seq[-self.max_seq_len:]
 
-    @abstractmethod
-    def __getitem__(self, idx: int):
-        """
-        Must be implemented in child dataset class.
-        """
-        pass
+        pad_len = self.max_seq_len - len(seq)
+
+        seq = [0] * pad_len + seq
+        time_seq = [0] * pad_len + time_seq
+
+        return (
+            torch.LongTensor(seq),
+            torch.LongTensor(time_seq),
+            torch.LongTensor([target]),
+        )
