@@ -5,6 +5,7 @@ from utils import load_config, get_device, save_checkpoint
 from models import MODEL_REGISTRY
 from losses import SequenceCrossEntropyLoss
 from evaluation import evaluate_model
+from results import save_result
 
 
 HIERARCHICAL_MODELS = {
@@ -20,12 +21,12 @@ class Trainer:
         model_name,
         dataset,
         train_loader,
-        val_loader=None,
+        val_loader,
     ):
         self.model_name = model_name
         self.dataset = dataset
         self.train_loader = train_loader
-        self.val_loader = val_loader or train_loader
+        self.val_loader = val_loader
 
         self.cfg = load_config(model_name)
 
@@ -138,6 +139,11 @@ class Trainer:
             save_checkpoint(
                 self.model,
                 self.best_model_path,
+            )
+
+            save_result(
+                self.model_name,
+                results,
             )
 
             return False
