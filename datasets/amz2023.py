@@ -10,7 +10,33 @@ from datasets.preprocess import (
 )
 
 
-class Amazon2023Dataset(Dataset):
+class SequentialDataset(Dataset):
+    def __init__(self, data, max_seq_len):
+        self.data = data
+        self.max_seq_len = max_seq_len
+
+    def __len__(self):
+        return len(self.data)
+
+    def pad_sequence(self, seq):
+        seq = seq[-self.max_seq_len:]
+        pad_len = self.max_seq_len - len(seq)
+        return [0] * pad_len + seq
+
+    def __getitem__(self, idx):
+        seq, time_seq, target = self.data[idx]
+
+        seq = self.pad_sequence(seq)
+        time_seq = self.pad_sequence(time_seq)
+
+        return (
+            torch.LongTensor(seq),
+            torch.LongTensor(time_seq),
+            torch.LongTensor([target]),
+        )
+
+
+class Amazon2023Dataset:
     def __init__(self):
         cfg = load_config()
 
@@ -37,30 +63,25 @@ class Amazon2023Dataset(Dataset):
 
         df, self.user_encoder, self.item_encoder = encode_ids(df)
 
-        self.train_data, self.val_data, self.test_data = build_sequences(
+        train_data, val_data, test_data = build_sequences(
             df,
             time_buckets,
         )
 
+        self.train_dataset = SequentialDataset(
+            train_data,
+            max_seq_len,
+        )
+
+        self.val_dataset = SequentialDataset(
+            list(val_data.values()),
+            max_seq_len,
+        )
+
+        self.test_dataset = SequentialDataset(
+            list(test_data.values()),
+            max_seq_len,
+        )
+
         self.num_items = df["item"].max() + 1
         self.num_users = df["user"].max() + 1
-
-    def __len__(self):
-        return len(self.train_data)
-
-    def __getitem__(self, idx):
-        seq, time_seq, target = self.train_data[idx]
-
-        seq = seq[-self.max_seq_len:]
-        time_seq = time_seq[-self.max_seq_len:]
-
-        pad_len = self.max_seq_len - len(seq)
-
-        seq = [0] * pad_len + seq
-        time_seq = [0] * pad_len + time_seq
-
-        return (
-            torch.LongTensor(seq),
-            torch.LongTensor(time_seq),
-            torch.LongTensor([target]),
-        )
