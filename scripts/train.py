@@ -1,7 +1,7 @@
 import argparse
 
 from utils import set_seed, load_config
-from datasets import get_train_loader
+from datasets import get_dataloaders
 from trainers import Trainer
 from models import ALL_MODELS
 
@@ -27,12 +27,18 @@ def train_single_model(model_name):
 
     set_seed(seed, deterministic)
 
-    train_loader, dataset = get_train_loader()
+    (
+        train_loader,
+        val_loader,
+        _,
+        dataset,
+    ) = get_dataloaders()
 
     trainer = Trainer(
         model_name=model_name,
         dataset=dataset,
         train_loader=train_loader,
+        val_loader=val_loader,
     )
 
     trainer.fit()
