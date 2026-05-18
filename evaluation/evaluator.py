@@ -4,15 +4,27 @@ import torch
 from evaluation.metrics import hit_rate, ndcg
 
 
+HIERARCHICAL_MODELS = {
+    "hier_gru",
+    "hier_sasrec",
+    "hier_nextitnet",
+}
+
+
 @torch.no_grad()
 def evaluate_model(
     model,
     dataloader,
     device,
-    top_k=[5, 10, 20],
-    hierarchical=False,
+    model_name,
+    top_k=None,
 ):
+    if top_k is None:
+        top_k = [5, 10, 20]
+
     model.eval()
+
+    hierarchical = model_name in HIERARCHICAL_MODELS
 
     metric_results = {}
 
@@ -25,7 +37,6 @@ def evaluate_model(
 
         seq = seq.to(device)
         time_seq = time_seq.to(device)
-
         target = target.squeeze(-1).to(device)
 
         if hierarchical:
