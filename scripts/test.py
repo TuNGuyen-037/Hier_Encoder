@@ -1,5 +1,4 @@
 import argparse
-import torch
 
 from utils import (
     set_seed,
@@ -7,7 +6,7 @@ from utils import (
     get_device,
     load_checkpoint,
 )
-from datasets import get_train_loader
+from datasets import get_dataloaders
 from models import MODEL_REGISTRY
 from evaluation import evaluate_model
 
@@ -19,7 +18,6 @@ def parse_args():
         "--model",
         type=str,
         required=True,
-        help="Model name",
     )
 
     return parser.parse_args()
@@ -39,7 +37,12 @@ def main():
         cfg["train"]["device"]
     )
 
-    loader, dataset = get_train_loader()
+    (
+        _,
+        _,
+        test_loader,
+        dataset,
+    ) = get_dataloaders()
 
     model = MODEL_REGISTRY[args.model](
         dataset.num_items
@@ -58,7 +61,7 @@ def main():
 
     results = evaluate_model(
         model=model,
-        dataloader=loader,
+        dataloader=test_loader,
         device=device,
         model_name=args.model,
         top_k=cfg["fairness"]["top_k"],
