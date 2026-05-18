@@ -2,7 +2,6 @@
 # FAIRNESS PROTOCOL
 # Locked settings for fair model comparison
 # ============================================================
-
 fairness:
   embedding_dim: 128
 
@@ -19,4 +18,7 @@ fairness:
 
   grad_clip: 1.0
 
-  eval_top_k: [5, 10, 20]
+  k_core: 5
+  max_seq_len: 50
+
+  top_k: [5, 10, 20]
