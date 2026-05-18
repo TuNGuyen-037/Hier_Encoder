@@ -1,0 +1,10 @@
+model:
+  name: sasrec
+
+  n_heads: 4
+  n_layers: 2
+  dropout: 0.2
+
+  use_positional_embedding: true
+  use_time_embedding: false
+  use_causal_mask: true
