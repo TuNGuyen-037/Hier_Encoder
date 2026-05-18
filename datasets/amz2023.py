@@ -1,7 +1,7 @@
-import yaml
 import torch
 from torch.utils.data import Dataset
 
+from utils import load_config
 from datasets.preprocess import (
     read_jsonl_gz,
     kcore_filter,
@@ -11,21 +11,18 @@ from datasets.preprocess import (
 
 
 class Amazon2023Dataset(Dataset):
-    def __init__(self, config_path="configs/base.yaml"):
-        with open(config_path, "r", encoding="utf-8") as f:
-            cfg = yaml.safe_load(f)
-
-        with open("configs/fairness.yaml", "r", encoding="utf-8") as f:
-            fairness = yaml.safe_load(f)["fairness"]
+    def __init__(self):
+        cfg = load_config()
 
         dataset_cfg = cfg["dataset"]
+        fairness_cfg = cfg["fairness"]
 
         review_path = dataset_cfg["review_path"]
         max_rows = dataset_cfg["max_rows"]
-
-        k_core = fairness["k_core"]
-        max_seq_len = fairness["max_seq_len"]
         time_buckets = dataset_cfg["time_buckets"]
+
+        k_core = fairness_cfg["k_core"]
+        max_seq_len = fairness_cfg["max_seq_len"]
 
         self.max_seq_len = max_seq_len
 
@@ -46,6 +43,7 @@ class Amazon2023Dataset(Dataset):
         )
 
         self.num_items = df["item"].max() + 1
+        self.num_users = df["user"].max() + 1
 
     def __len__(self):
         return len(self.train_data)
