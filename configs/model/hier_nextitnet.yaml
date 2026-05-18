@@ -1,0 +1,12 @@
+model:
+  name: hier_nextitnet
+
+  kernel_size: 3
+  dilations: [1, 2, 4, 8]
+  n_blocks: 2
+  dropout: 0.2
+
+  use_time_embedding: true
+  use_attention_pooling: true
+  use_gate: true
+  use_short_long_fusion: true
