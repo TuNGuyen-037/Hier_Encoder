@@ -1,27 +1,47 @@
-import yaml
 from torch.utils.data import DataLoader
 
+from utils import load_config
 from datasets.amz2023 import Amazon2023Dataset
 
 
-def get_train_loader(config_path="configs/base.yaml"):
-    with open(config_path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
+def get_dataloaders():
+    cfg = load_config()
 
-    with open("configs/fairness.yaml", "r", encoding="utf-8") as f:
-        fairness = yaml.safe_load(f)["fairness"]
+    fairness = cfg["fairness"]
+    train_cfg = cfg["train"]
 
     batch_size = fairness["batch_size"]
-    num_workers = cfg["train"]["num_workers"]
+    num_workers = train_cfg["num_workers"]
 
-    dataset = Amazon2023Dataset(config_path=config_path)
+    dataset = Amazon2023Dataset()
 
-    loader = DataLoader(
-        dataset,
+    train_loader = DataLoader(
+        dataset.train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
     )
 
-    return loader, dataset
+    val_loader = DataLoader(
+        dataset.val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+
+    test_loader = DataLoader(
+        dataset.test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+
+    return (
+        train_loader,
+        val_loader,
+        test_loader,
+        dataset,
+    )
