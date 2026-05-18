@@ -1,0 +1,12 @@
+model:
+  name: hier_gru
+
+  hidden_dim: 128
+  n_layers: 2
+  dropout: 0.1
+
+  use_time_embedding: true
+  use_meta_embedding: true
+  use_attention: true
+
+  hierarchy_depth: 3
