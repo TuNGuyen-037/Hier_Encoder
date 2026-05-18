@@ -1,0 +1,74 @@
+# ============================================================
+# BASE CONFIGURATION
+# Shared infrastructure config for ALL models
+# ============================================================
+
+project:
+  name: Hier_Encoder_Benchmark
+  seed: 42
+
+
+# ============================================================
+# DATASET
+# ============================================================
+dataset:
+  name: amazon_2023
+
+  review_path: data/Cell_Phones_and_Accessories.jsonl.gz
+  meta_path: data/meta_Cell_Phones_and_Accessories.jsonl.gz
+
+  max_rows: 2000000
+  k_core: 5
+  max_seq_len: 50
+
+  use_meta: true
+  use_timestamp: true
+
+  time_buckets:
+    - 1
+    - 10
+    - 100
+
+
+# ============================================================
+# TRAINING DEFAULTS
+# ============================================================
+train:
+  epochs: 1000
+  optimizer: adamw
+  weight_decay: 0.0001
+
+  early_stopping_patience: 20
+  early_stopping_metric: ndcg@10
+
+  grad_clip: 1.0
+
+  device: auto
+  num_workers: 4
+
+
+# ============================================================
+# EVALUATION
+# ============================================================
+eval:
+  top_k: [5, 10, 20]
+  metrics: [hr, ndcg]
+  eval_interval: 1
+
+
+# ============================================================
+# LOGGING
+# ============================================================
+logging:
+  checkpoint_dir: results/checkpoints
+  best_model_path: results/checkpoints/best.pt
+  log_dir: results/logs
+  result_dir: results/tables
+
+
+# ============================================================
+# REPRODUCIBILITY
+# ============================================================
+reproducibility:
+  seeds: [42]
+  deterministic: false
