@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+venv/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data
+data/*
+!data/.gitkeep
+
+# Results
+results/*
+!results/checkpoints/
+!results/logs/
+!results/tables/
+!results/checkpoints/.gitkeep
+!results/logs/.gitkeep
+!results/tables/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
