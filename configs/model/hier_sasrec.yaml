@@ -1,0 +1,14 @@
+model:
+  name: hier_sasrec
+
+  n_heads: 4
+  n_layers: 3
+  dropout: 0.2
+
+  use_positional_embedding: true
+  use_time_embedding: true
+  use_causal_mask: true
+
+  use_time_decay: true
+  use_attention_pooling: true
+  use_gate: true
