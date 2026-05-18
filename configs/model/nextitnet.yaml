@@ -1,0 +1,7 @@
+model:
+  name: nextitnet
+
+  kernel_size: 3
+  dilations: [1, 2, 4, 8]
+  n_blocks: 2
+  dropout: 0.2
