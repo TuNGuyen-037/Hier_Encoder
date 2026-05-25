@@ -49,6 +49,95 @@ The current implementation is built on Amazon Review Dataset 2023 using:
 - hierarchical temporal representations
 
 ---
+# System Architecture
+
+Hier_Encoder follows a modular benchmark architecture for sequential recommendation research.
+
+The workflow is:
+
+```text
+Raw Dataset
+    ↓
+Preprocessing
+    ↓
+Processed Dataset
+    ↓
+Dataset Loader
+    ↓
+Model
+    ↓
+Trainer
+    ↓
+Evaluation
+    ↓
+Benchmark Results
+Amazon 2023 Raw Dataset
+(data/raw)
+    │
+    ├── Cell_Phones_and_Accessories.jsonl.gz
+    └── meta_Cell_Phones_and_Accessories.jsonl.gz
+    │
+    ▼
+datasets/preprocess.py
+    │
+    ├── JSON parsing
+    ├── data cleaning
+    ├── k-core filtering
+    ├── user/item encoding
+    ├── sequence generation
+    ├── temporal bucket construction
+    └── train/val/test splitting
+    │
+    ▼
+Processed Dataset
+(data/processed)
+    │
+    ├── train.pkl
+    ├── val.pkl
+    ├── test.pkl
+    ├── user_encoder.pkl
+    └── item_encoder.pkl
+    │
+    ▼
+datasets/amz2023.py
+    │
+    └── load processed benchmark data
+    │
+    ▼
+datasets/dataloader.py
+    │
+    ├── train_loader
+    ├── val_loader
+    └── test_loader
+    │
+    ▼
+models/
+    │
+    ├── GRU4Rec
+    ├── HierGRU
+    ├── SASRec
+    ├── HierSASRec
+    ├── NextItNet
+    └── HierNextItNet
+    │
+    ▼
+trainers/trainer.py
+    │
+    ├── forward pass
+    ├── loss computation
+    ├── optimization
+    ├── validation
+    ├── early stopping
+    └── checkpoint saving
+    │
+    ▼
+evaluation/
+    │
+    ├── HR@K
+    └── NDCG@K
+    │
+    ▼
+results/
 
 # Supported Models
 
@@ -185,6 +274,7 @@ Hier_Encoder/
 │   └── tables/
 │
 ├── scripts/
+│   ├── preprocess.py
 │   ├── train.py
 │   └── test.py
 │
@@ -200,13 +290,22 @@ Hier_Encoder/
 │   └── seed.py
 │
 ├── data/
+│   ├── raw/
+│   │   ├── Cell_Phones_and_Accessories.jsonl.gz
+│   │   └── meta_Cell_Phones_and_Accessories.jsonl.gz
+│   │
+│   └── processed/
+│       ├── train.pkl
+│       ├── val.pkl
+│       ├── test.pkl
+│       ├── user_encoder.pkl
+│       └── item_encoder.pkl
 │
 ├── main.py
 ├── requirements.txt
 ├── .gitignore
 └── README.md
 ```
-
 ---
 
 # Requirements
