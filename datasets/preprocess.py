@@ -1,14 +1,16 @@
 # datasets/preprocess.py
 import gzip
 import json
+import pickle
+from pathlib import Path
+
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
+from utils import load_config
+
 
 def read_jsonl_gz(path, columns, max_rows=None):
-    """
-    Read compressed Amazon JSONL.GZ file.
-    """
     data = []
 
     with gzip.open(path, "rt", encoding="utf-8") as f:
@@ -18,7 +20,9 @@ def read_jsonl_gz(path, columns, max_rows=None):
 
             try:
                 obj = json.loads(line)
-                data.append({col: obj.get(col) for col in columns})
+                data.append(
+                    {col: obj.get(col) for col in columns}
+                )
             except Exception:
                 continue
 
@@ -26,17 +30,23 @@ def read_jsonl_gz(path, columns, max_rows=None):
 
 
 def kcore_filter(df, k=5):
-    """
-    Iterative k-core filtering.
-    """
     while True:
         before = len(df)
 
         user_count = df["user_id"].value_counts()
         item_count = df["parent_asin"].value_counts()
 
-        df = df[df["user_id"].isin(user_count[user_count >= k].index)]
-        df = df[df["parent_asin"].isin(item_count[item_count >= k].index)]
+        df = df[
+            df["user_id"].isin(
+                user_count[user_count >= k].index
+            )
+        ]
+
+        df = df[
+            df["parent_asin"].isin(
+                item_count[item_count >= k].index
+            )
+        ]
 
         if len(df) == before:
             break
@@ -45,22 +55,18 @@ def kcore_filter(df, k=5):
 
 
 def encode_ids(df):
-    """
-    Encode user/item IDs.
-    """
     user_encoder = LabelEncoder()
     item_encoder = LabelEncoder()
 
     df["user"] = user_encoder.fit_transform(df["user_id"])
-    df["item"] = item_encoder.fit_transform(df["parent_asin"]) + 1
+    df["item"] = item_encoder.fit_transform(
+        df["parent_asin"]
+    ) + 1
 
     return df, user_encoder, item_encoder
 
 
 def time_to_bucket(delta, buckets):
-    """
-    Map time delta to bucket.
-    """
     for idx, threshold in enumerate(buckets):
         if delta < threshold:
             return idx
@@ -69,9 +75,6 @@ def time_to_bucket(delta, buckets):
 
 
 def build_sequences(df, time_buckets):
-    """
-    Build train / val / test sequential recommendation data.
-    """
     train_data = []
     val_data = {}
     test_data = {}
@@ -85,10 +88,10 @@ def build_sequences(df, time_buckets):
         if len(items) < 3:
             continue
 
-        delta = [0] + [
-            times[i] - times[i - 1]
-            for i in range(1, len(times))
-        ]
+        delta = [0]
+
+        for i in range(1, len(times)):
+            delta.append(times[i] - times[i - 1])
 
         time_ids = [
             time_to_bucket(d, time_buckets) + 1
@@ -120,3 +123,65 @@ def build_sequences(df, time_buckets):
             )
 
     return train_data, val_data, test_data
+
+
+def save_pickle(obj, path):
+    with open(path, "wb") as f:
+        pickle.dump(obj, f)
+
+
+def load_pickle(path):
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+
+def preprocess_and_save():
+    cfg = load_config()
+
+    dataset_cfg = cfg["dataset"]
+    fairness_cfg = cfg["fairness"]
+
+    raw_dir = Path(dataset_cfg["raw_dir"])
+    processed_dir = Path(dataset_cfg["processed_dir"])
+
+    processed_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    review_path = raw_dir / dataset_cfg["review_file"]
+
+    max_rows = dataset_cfg["max_rows"]
+    time_buckets = dataset_cfg["time_buckets"]
+
+    k_core = fairness_cfg["k_core"]
+
+    df = read_jsonl_gz(
+        review_path,
+        ["user_id", "parent_asin", "timestamp"],
+        max_rows=max_rows,
+    )
+
+    df = df.dropna()
+    df = kcore_filter(df, k=k_core)
+
+    df, user_encoder, item_encoder = encode_ids(df)
+
+    train_data, val_data, test_data = build_sequences(
+        df,
+        time_buckets,
+    )
+
+    save_pickle(train_data, processed_dir / "train.pkl")
+    save_pickle(val_data, processed_dir / "val.pkl")
+    save_pickle(test_data, processed_dir / "test.pkl")
+
+    save_pickle(
+        user_encoder,
+        processed_dir / "user_encoder.pkl",
+    )
+
+    save_pickle(
+        item_encoder,
+        processed_dir / "item_encoder.pkl",
+    )
