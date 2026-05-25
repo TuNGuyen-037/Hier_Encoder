@@ -3,9 +3,11 @@
 > **Central Research Question:**  
 > Do hierarchical sequence encoders improve next-item recommendation performance compared with standard sequential recommendation models under a unified and fair benchmark protocol?
 
-Hier_Encoder is a research-oriented benchmark framework for sequential recommendation using Amazon Review Dataset 2023.
+Hier_Encoder is a research-oriented benchmark framework for sequential recommendation using the Amazon Review Dataset 2023.
 
-The project focuses on comparing standard sequential recommendation architectures with their hierarchical variants for modeling short-term and long-term user behavior.
+This project focuses on benchmarking standard sequential recommendation architectures against their hierarchical variants for next-item recommendation tasks.
+
+The framework is designed for reproducible research, fair model comparison, and modular experimentation.
 
 ---
 
@@ -13,50 +15,80 @@ The project focuses on comparing standard sequential recommendation architecture
 
 1. [Overview](#overview)
 2. [Supported Models](#supported-models)
-3. [Architecture Pipeline](#architecture-pipeline)
+3. [System Architecture](#system-architecture)
 4. [Project Structure](#project-structure)
 5. [Requirements](#requirements)
 6. [Installation](#installation)
 7. [Dataset Preparation](#dataset-preparation)
 8. [Configuration System](#configuration-system)
-9. [Training](#training)
-10. [Testing](#testing)
-11. [Benchmark Results](#benchmark-results)
-12. [Evaluation Metrics](#evaluation-metrics)
-13. [Fairness Protocol](#fairness-protocol)
-14. [Future Work](#future-work)
+9. [Recommended Workflow](#recommended-workflow)
+10. [Training](#training)
+11. [Testing](#testing)
+12. [Benchmark Results](#benchmark-results)
+13. [Evaluation Metrics](#evaluation-metrics)
+14. [Fairness Protocol](#fairness-protocol)
+15. [Reproducibility](#reproducibility)
+16. [Future Work](#future-work)
+17. [License](#license)
 
 ---
 
 # Overview
 
-This project implements multiple sequential recommendation architectures and their hierarchical extensions for next-item recommendation tasks.
+Hier_Encoder implements multiple sequential recommendation architectures and their hierarchical extensions under a unified benchmark framework.
 
-The framework supports:
+The project supports:
 
-- unified training pipeline
+- modular architecture
+- reproducible experiments
 - fairness-aware benchmarking
-- train / validation / test evaluation
-- automatic checkpoint saving
-- benchmark aggregation
-- multi-model training
-- reproducibility control
+- automatic dataset preprocessing
+- checkpoint management
+- benchmark result aggregation
+- multi-model experimentation
+- standardized evaluation
 
-The current implementation is built on Amazon Review Dataset 2023 using:
+Current benchmark setting:
 
-- user-item interaction sequences
-- timestamp-aware sequence encoding
-- hierarchical temporal representations
+- Dataset: Amazon Review Dataset 2023
+- Domain: Cell Phones & Accessories
+- Task: Next-item recommendation
+- Evaluation: HR@K, NDCG@K
 
 ---
+
+# Supported Models
+
+## Baseline Sequential Models
+
+| Model | Architecture Type | Description |
+|------|------------------|-------------|
+| GRU4Rec | RNN-based | GRU sequential recommendation model |
+| SASRec | Transformer-based | Self-attention sequential recommendation |
+| NextItNet | CNN-based | Dilated convolution sequential recommendation |
+
+---
+
+## Hierarchical Models
+
+| Model | Architecture Type | Description |
+|------|------------------|-------------|
+| HierGRU | Hierarchical RNN | Multi-scale temporal GRU encoder |
+| HierSASRec | Hierarchical Transformer | Hierarchical self-attention sequence modeling |
+| HierNextItNet | Hierarchical CNN | Multi-scale dilated convolution encoder |
+
+---
+
 # System Architecture
 
-Hier_Encoder follows a modular benchmark architecture for sequential recommendation research.
+Hier_Encoder follows a modular benchmark pipeline.
 
-The workflow is:
+## High-Level Workflow
 
 ```text
 Raw Dataset
+    ↓
+Download
     ↓
 Preprocessing
     ↓
@@ -71,22 +103,33 @@ Trainer
 Evaluation
     ↓
 Benchmark Results
-Amazon 2023 Raw Dataset
+```
+
+---
+
+## Detailed Pipeline
+
+```text
+Amazon Review Dataset 2023
 (data/raw)
     │
     ├── Cell_Phones_and_Accessories.jsonl.gz
     └── meta_Cell_Phones_and_Accessories.jsonl.gz
     │
     ▼
+scripts/download_data.py
+    │
+    ▼
 datasets/preprocess.py
     │
     ├── JSON parsing
-    ├── data cleaning
+    ├── invalid row filtering
     ├── k-core filtering
-    ├── user/item encoding
-    ├── sequence generation
-    ├── temporal bucket construction
-    └── train/val/test splitting
+    ├── user encoding
+    ├── item encoding
+    ├── temporal bucket generation
+    ├── sequence construction
+    └── train / validation / test split
     │
     ▼
 Processed Dataset
@@ -101,7 +144,7 @@ Processed Dataset
     ▼
 datasets/amz2023.py
     │
-    └── load processed benchmark data
+    └── processed dataset loading
     │
     ▼
 datasets/dataloader.py
@@ -137,90 +180,7 @@ evaluation/
     └── NDCG@K
     │
     ▼
-results/
-
-# Supported Models
-
-## Baseline Sequential Models
-
-| Model | Type | Description |
-|------|------|-------------|
-| GRU4Rec | RNN-based | GRU sequential recommender |
-| SASRec | Transformer-based | Self-attention sequential recommendation |
-| NextItNet | CNN-based | Dilated convolution sequential recommendation |
-
----
-
-## Hierarchical Models
-
-| Model | Type | Description |
-|------|------|-------------|
-| HierGRU | Hierarchical RNN | Multi-scale temporal GRU encoder |
-| HierSASRec | Hierarchical Transformer | Hierarchical self-attention sequence modeling |
-| HierNextItNet | Hierarchical CNN | Hierarchical dilated convolution encoder |
-
----
-
-# Architecture Pipeline
-
-## Overall Pipeline
-
-```text
-┌─────────────────────────────────────────────────────┐
-│                 AMAZON REVIEW DATASET               │
-│                                                     │
-│  Cell Phones & Accessories                          │
-│  ├── review interactions                            │
-│  ├── timestamps                                     │
-│  └── metadata                                       │
-└──────────────────────────┬──────────────────────────┘
-                           │
-                    datasets/preprocess.py
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────┐
-│              DATA PREPROCESSING                     │
-│                                                     │
-│  • read jsonl.gz                                    │
-│  • remove invalid rows                              │
-│  • k-core filtering                                 │
-│  • user/item encoding                               │
-│  • sequence generation                              │
-│  • time bucket construction                         │
-│  • train/val/test split                             │
-└──────────────────────────┬──────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────┐
-│                  DATALOADER                         │
-│                                                     │
-│  train_loader                                       │
-│  val_loader                                         │
-│  test_loader                                        │
-└──────────────────────────┬──────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────┐
-│                     TRAINER                         │
-│                                                     │
-│  • training loop                                    │
-│  • evaluation                                       │
-│  • early stopping                                   │
-│  • checkpoint saving                                │
-│  • benchmark logging                                │
-└──────────────────────────┬──────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────┐
-│                   EVALUATION                        │
-│                                                     │
-│  • HR@K                                             │
-│  • NDCG@K                                           │
-│  • benchmark aggregation                            │
-└──────────────────────────┬──────────────────────────┘
-                           │
-                           ▼
-               results/tables/benchmark_results.csv
+results/tables/benchmark_results.csv
 ```
 
 ---
@@ -274,6 +234,7 @@ Hier_Encoder/
 │   └── tables/
 │
 ├── scripts/
+│   ├── download_data.py
 │   ├── preprocess.py
 │   ├── train.py
 │   └── test.py
@@ -306,16 +267,19 @@ Hier_Encoder/
 ├── .gitignore
 └── README.md
 ```
+
 ---
 
 # Requirements
 
-| Component | Recommended |
-|-----------|-------------|
+Recommended environment:
+
+| Component | Recommended Version |
+|----------|--------------------|
 | Python | 3.10+ |
 | PyTorch | 2.x |
 | CUDA | 11.8+ |
-| RAM | 16 GB |
+| RAM | 16 GB+ |
 | GPU VRAM | 4 GB+ |
 
 ---
@@ -333,19 +297,23 @@ cd Hier_Encoder
 
 ## Install Dependencies
 
-### GPU Version
+### GPU Installation
 
 ```bash
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 ```
 
-### CPU Version
+---
+
+### CPU Installation
 
 ```bash
 pip install torch torchvision torchaudio
 ```
 
-### Install Remaining Packages
+---
+
+### Install Remaining Dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -357,49 +325,58 @@ pip install -r requirements.txt
 
 This project uses Amazon Review Dataset 2023.
 
----
-
-## Download Review Data
-
-Cell Phones & Accessories:
+Dataset domain:
 
 ```text
-https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/review_categories/Cell_Phones_and_Accessories.jsonl.gz
+Cell Phones & Accessories
 ```
 
 ---
 
-## Download Meta Data
+## Step 1: Download Dataset
 
-```text
-https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/meta_categories/meta_Cell_Phones_and_Accessories.jsonl.gz
-```
-
----
-
-## Place Files
-
-Put both files inside:
+Automatically download raw dataset files:
 
 ```bash
-data/
+python scripts/download_data.py
 ```
 
-Final structure:
+Downloaded files:
 
 ```bash
-data/
+data/raw/
 ├── Cell_Phones_and_Accessories.jsonl.gz
 └── meta_Cell_Phones_and_Accessories.jsonl.gz
 ```
 
 ---
 
+## Step 2: Preprocess Dataset
+
+Convert raw files into benchmark-ready processed data:
+
+```bash
+python scripts/preprocess.py
+```
+
+Generated files:
+
+```bash
+data/processed/
+├── train.pkl
+├── val.pkl
+├── test.pkl
+├── user_encoder.pkl
+└── item_encoder.pkl
+```
+
+---
+
 # Configuration System
 
-The framework uses layered configuration.
+The project uses layered configuration.
 
-Priority order:
+Priority:
 
 ```text
 Model Config
@@ -413,23 +390,23 @@ Base Config
 
 ## base.yaml
 
-Shared infrastructure configuration.
+Shared infrastructure settings.
 
 Controls:
 
 - dataset paths
 - logging
-- reproducibility
 - evaluation
-- default training settings
+- reproducibility
+- shared defaults
 
 ---
 
 ## fairness.yaml
 
-Defines fair benchmark constraints shared by all models.
+Benchmark fairness constraints.
 
-Includes:
+Shared across all models:
 
 - embedding dimension
 - batch size
@@ -437,12 +414,11 @@ Includes:
 - optimizer
 - epochs
 - early stopping
-
-This ensures fair comparison across all architectures.
+- evaluation settings
 
 ---
 
-## Model Configs
+## model configs
 
 Located in:
 
@@ -458,29 +434,41 @@ sasrec.yaml
 hier_sasrec.yaml
 ```
 
-Controls:
+Controls architecture-specific settings:
 
 - hidden size
 - dropout
-- attention heads
-- number of layers
-- kernel size
+- transformer heads
+- CNN kernel size
+- GRU layers
 
 ---
 
-# Training
+# Recommended Workflow
 
-## Train Single Model
+## Step 1
 
-### GRU4Rec
+Download dataset:
 
 ```bash
-python main.py --mode train --model gru4rec
+python scripts/download_data.py
 ```
 
 ---
 
-### SASRec
+## Step 2
+
+Preprocess dataset:
+
+```bash
+python scripts/preprocess.py
+```
+
+---
+
+## Step 3
+
+Train a model:
 
 ```bash
 python main.py --mode train --model sasrec
@@ -488,7 +476,43 @@ python main.py --mode train --model sasrec
 
 ---
 
-### HierSASRec
+## Step 4
+
+Test trained model:
+
+```bash
+python main.py --mode test --model sasrec
+```
+
+---
+
+## Step 5
+
+Compare benchmark results:
+
+```bash
+results/tables/benchmark_results.csv
+```
+
+---
+
+# Training
+
+## Train Single Model
+
+GRU4Rec:
+
+```bash
+python main.py --mode train --model gru4rec
+```
+
+SASRec:
+
+```bash
+python main.py --mode train --model sasrec
+```
+
+HierSASRec:
 
 ```bash
 python main.py --mode train --model hier_sasrec
@@ -502,7 +526,7 @@ python main.py --mode train --model hier_sasrec
 python main.py --mode train --model all
 ```
 
-This automatically trains:
+Models trained:
 
 - GRU4Rec
 - HierGRU
@@ -541,7 +565,7 @@ python main.py --mode test --model all
 
 # Benchmark Results
 
-## Model Checkpoints
+## Checkpoints
 
 Saved in:
 
@@ -559,7 +583,7 @@ best_hier_sasrec.pt
 
 ---
 
-## Benchmark Tables
+## Benchmark Table
 
 Saved in:
 
@@ -577,6 +601,9 @@ Example:
 
 | model | hr@5 | ndcg@5 | hr@10 | ndcg@10 | hr@20 | ndcg@20 |
 |------|------|---------|--------|----------|--------|----------|
+| gru4rec | 0.12 | 0.08 | 0.21 | 0.11 | 0.31 | 0.15 |
+| sasrec | 0.15 | 0.10 | 0.25 | 0.14 | 0.37 | 0.19 |
+| hier_sasrec | 0.17 | 0.11 | 0.28 | 0.16 | 0.40 | 0.21 |
 
 ---
 
@@ -589,27 +616,30 @@ Implemented metrics:
 | HR@K | Hit Rate |
 | NDCG@K | Normalized Discounted Cumulative Gain |
 
-Supported K values:
+Supported:
 
-- @5
-- @10
-- @20
+- HR@5
+- HR@10
+- HR@20
+- NDCG@5
+- NDCG@10
+- NDCG@20
 
 ---
 
 # Fairness Protocol
 
-To ensure fair comparison:
+All benchmark comparisons follow the same constraints:
 
-- same embedding dimension
-- same optimizer
-- same batch size
-- same learning rate
-- same evaluation protocol
-- same train/validation/test split
-- same metrics
+- identical embedding dimension
+- identical optimizer
+- identical learning rate
+- identical batch size
+- identical evaluation metrics
+- identical train / validation / test split
+- identical early stopping protocol
 
-All shared settings are defined in:
+Configuration:
 
 ```bash
 configs/fairness.yaml
@@ -619,7 +649,7 @@ configs/fairness.yaml
 
 # Reproducibility
 
-Controlled through:
+Controlled via:
 
 ```yaml
 reproducibility:
@@ -637,7 +667,7 @@ configs/base.yaml
 
 # Future Work
 
-Potential future extensions:
+Potential extensions:
 
 - BERT4Rec
 - Contrastive Sequential Recommendation
@@ -650,21 +680,6 @@ Potential future extensions:
 
 ---
 
-# Notes
-
-Current framework supports:
-
-- next-item recommendation
-- sequential recommendation
-- hierarchical sequence modeling
-- benchmark comparison
-- automatic evaluation
-- checkpoint management
-- benchmark aggregation
-
----
-
 # License
 
-This repository is intended for academic and research purposes.
-```
+This repository is intended for academic and research use.
