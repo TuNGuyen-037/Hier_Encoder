@@ -1,8 +1,8 @@
 # ============================================================
 # BASE CONFIGURATION
 # Shared infrastructure config for ALL models
-# configs/base.yaml
 # ============================================================
+
 project:
   name: Hier_Encoder_Benchmark
   seed: 42
@@ -12,10 +12,15 @@ project:
 # ============================================================
 dataset:
   name: amazon_2023
-  review_path: data/Cell_Phones_and_Accessories.jsonl.gz
-  meta_path: data/meta_Cell_Phones_and_Accessories.jsonl.gz
+
+  raw_dir: data/raw
+  processed_dir: data/processed
+
+  review_file: Cell_Phones_and_Accessories.jsonl.gz
+  meta_file: meta_Cell_Phones_and_Accessories.jsonl.gz
 
   max_rows: 2000000
+  use_processed: true
 
   use_meta: true
   use_timestamp: true
