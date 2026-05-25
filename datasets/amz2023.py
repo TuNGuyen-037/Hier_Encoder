@@ -1,13 +1,12 @@
 # datasets/amz2023.py
 import torch
+from pathlib import Path
 from torch.utils.data import Dataset
 
 from utils import load_config
 from datasets.preprocess import (
-    read_jsonl_gz,
-    kcore_filter,
-    encode_ids,
-    build_sequences,
+    load_pickle,
+    preprocess_and_save,
 )
 
 
@@ -44,30 +43,36 @@ class Amazon2023Dataset:
         dataset_cfg = cfg["dataset"]
         fairness_cfg = cfg["fairness"]
 
-        review_path = dataset_cfg["review_path"]
-        max_rows = dataset_cfg["max_rows"]
-        time_buckets = dataset_cfg["time_buckets"]
+        processed_dir = Path(
+            dataset_cfg["processed_dir"]
+        )
 
-        k_core = fairness_cfg["k_core"]
+        train_path = processed_dir / "train.pkl"
+
+        if not train_path.exists():
+            preprocess_and_save()
+
+        train_data = load_pickle(
+            processed_dir / "train.pkl"
+        )
+
+        val_data = load_pickle(
+            processed_dir / "val.pkl"
+        )
+
+        test_data = load_pickle(
+            processed_dir / "test.pkl"
+        )
+
+        self.user_encoder = load_pickle(
+            processed_dir / "user_encoder.pkl"
+        )
+
+        self.item_encoder = load_pickle(
+            processed_dir / "item_encoder.pkl"
+        )
+
         max_seq_len = fairness_cfg["max_seq_len"]
-
-        self.max_seq_len = max_seq_len
-
-        df = read_jsonl_gz(
-            review_path,
-            ["user_id", "parent_asin", "timestamp"],
-            max_rows=max_rows,
-        )
-
-        df = df.dropna()
-        df = kcore_filter(df, k=k_core)
-
-        df, self.user_encoder, self.item_encoder = encode_ids(df)
-
-        train_data, val_data, test_data = build_sequences(
-            df,
-            time_buckets,
-        )
 
         self.train_dataset = SequentialDataset(
             train_data,
@@ -84,5 +89,10 @@ class Amazon2023Dataset:
             max_seq_len,
         )
 
-        self.num_items = df["item"].max() + 1
-        self.num_users = df["user"].max() + 1
+        self.num_users = len(
+            self.user_encoder.classes_
+        )
+
+        self.num_items = (
+            len(self.item_encoder.classes_) + 1
+        )
