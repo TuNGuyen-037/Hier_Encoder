@@ -1,6 +1,7 @@
 # ============================================================
 # BASE CONFIGURATION
 # Shared infrastructure config for ALL models
+# configs/base.yaml
 # ============================================================
 project:
   name: Hier_Encoder_Benchmark
