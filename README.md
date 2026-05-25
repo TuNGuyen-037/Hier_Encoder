@@ -250,17 +250,6 @@ Hier_Encoder/
 │   ├── io.py
 │   └── seed.py
 │
-├── data/
-│   ├── raw/
-│   │   ├── Cell_Phones_and_Accessories.jsonl.gz
-│   │   └── meta_Cell_Phones_and_Accessories.jsonl.gz
-│   │
-│   └── processed/
-│       ├── train.pkl
-│       ├── val.pkl
-│       ├── test.pkl
-│       ├── user_encoder.pkl
-│       └── item_encoder.pkl
 │
 ├── main.py
 ├── requirements.txt
