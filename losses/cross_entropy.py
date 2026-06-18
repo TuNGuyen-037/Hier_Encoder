@@ -13,7 +13,6 @@ class SequenceCrossEntropyLoss(nn.Module):
         logits: [B, num_items]
         targets: [B] or [B, 1]
         """
-
         if targets.dim() > 1:
             targets = targets.squeeze(-1)
 
