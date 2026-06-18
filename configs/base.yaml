@@ -3,7 +3,6 @@
 # Shared infrastructure config for ALL models
 # configs/base.yaml
 # ============================================================
-
 project:
   name: Hier_Encoder_Benchmark
   seed: 42
@@ -25,6 +24,9 @@ dataset:
 
   use_meta: true
   use_timestamp: true
+
+  # Đồng bộ tối ưu hóa cấu trúc cây danh mục theo báo cáo đồ án
+  max_depth: 3 
 
   time_buckets:
     - 1
