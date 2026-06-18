@@ -3,10 +3,11 @@ import torch
 import torch.nn as nn
 
 from utils import load_config
+from .hier_encoder import HierarchicalCategoryEncoder
 
 
 class HierGRU(nn.Module):
-    def __init__(self, num_items):
+    def __init__(self, num_items, num_categories_per_level):
         super().__init__()
 
         cfg = load_config("hier_gru")
@@ -17,7 +18,8 @@ class HierGRU(nn.Module):
         embedding_dim = fairness["embedding_dim"]
         n_layers = model_cfg["n_layers"]
         dropout = model_cfg["dropout"]
-
+        
+        # Nhúng Item gốc
         self.item_embedding = nn.Embedding(
             num_items,
             embedding_dim,
@@ -29,31 +31,23 @@ class HierGRU(nn.Module):
             embedding_dim,
             padding_idx=0,
         )
-
-        self.short_gru = nn.GRU(
-            input_size=embedding_dim,
-            hidden_size=embedding_dim,
-            num_layers=1,
-            batch_first=True,
+        
+        # Khối Encoder Phân cấp Danh mục theo đúng báo cáo ĐATN
+        self.hier_encoder = HierarchicalCategoryEncoder(
+            num_categories_per_level=num_categories_per_level,
+            embedding_dim=embedding_dim,
+            max_depth=3
         )
 
-        self.long_gru = nn.GRU(
+        # Khối Fusion Module (Gating Mechanism) kết hợp Item-Time và Hierarchical Category
+        self.fusion_gate = nn.Linear(embedding_dim * 2, embedding_dim)
+
+        self.gru = nn.GRU(
             input_size=embedding_dim,
             hidden_size=embedding_dim,
             num_layers=n_layers,
             batch_first=True,
             dropout=dropout if n_layers > 1 else 0.0,
-        )
-
-        self.attention = nn.Sequential(
-            nn.Linear(embedding_dim, embedding_dim),
-            nn.Tanh(),
-            nn.Linear(embedding_dim, 1),
-        )
-
-        self.gate = nn.Linear(
-            embedding_dim * 2,
-            embedding_dim,
         )
 
         self.dropout = nn.Dropout(dropout)
@@ -63,42 +57,30 @@ class HierGRU(nn.Module):
             num_items,
         )
 
-    def attention_pool(self, x):
-        scores = self.attention(x)
-        weights = torch.softmax(scores, dim=1)
-        pooled = (weights * x).sum(dim=1)
-        return pooled
-
-    def forward(self, seq, time_seq):
+    def forward(self, seq, time_seq, category_paths):
         """
-        seq: [B, L]
-        time_seq: [B, L]
+        seq: [B, L] -> Item Sequence
+        time_seq: [B, L] -> Time Step Sequence
+        category_paths: [B, L, max_depth] -> Danh mục phân cấp tương ứng của từng Item trong chuỗi
         """
-
         item_emb = self.item_embedding(seq)
         time_emb = self.time_embedding(time_seq)
+        
+        # 1. Trích xuất thuộc tính phân cấp danh mục từ cây Taxonomy
+        hier_emb = self.hier_encoder(category_paths)
 
-        x = item_emb + time_emb
+        # Base item representation
+        base_features = item_emb + time_emb
 
-        short_input = x[:, -10:, :]
+        # 2. Định hình khối Fusion Module trong cấu trúc HierGNN
+        combined = torch.cat([base_features, hier_emb], dim=-1)
+        gate = torch.sigmoid(self.fusion_gate(combined))
+        x = gate * base_features + (1.0 - gate) * hier_emb
 
-        _, short_hidden = self.short_gru(short_input)
-        short_hidden = short_hidden[-1]
-
-        long_output, _ = self.long_gru(x)
-        long_hidden = self.attention_pool(long_output)
-
-        fusion = torch.cat(
-            [short_hidden, long_hidden],
-            dim=-1,
-        )
-
-        gate = torch.sigmoid(self.gate(fusion))
-
-        hidden = gate * short_hidden + (1.0 - gate) * long_hidden
-
+        # Forward qua Sequential Backbone (GRU)
+        _, hidden = self.gru(x)
+        hidden = hidden[-1]
         hidden = self.dropout(hidden)
 
         logits = self.output(hidden)
-
         return logits
