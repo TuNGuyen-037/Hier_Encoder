@@ -1,3 +1,4 @@
+# configs/model/ hier_sasrec.yaml
 model:
   name: hier_sasrec
 
