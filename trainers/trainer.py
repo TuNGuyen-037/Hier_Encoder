@@ -37,9 +37,20 @@ class Trainer:
 
         self.device = get_device(train_cfg["device"])
 
-        self.model = MODEL_REGISTRY[model_name](
-            dataset.num_items
-        ).to(self.device)
+        self.hierarchical = (
+            model_name in HIERARCHICAL_MODELS
+        )
+
+        # ĐỒNG BỘ KHỞI TẠO: Kiểm tra nếu là mô hình Hierarchical thì truyền thêm danh sách category levels từ dataset
+        if self.hierarchical:
+            self.model = MODEL_REGISTRY[model_name](
+                num_items=dataset.num_items,
+                num_categories_per_level=dataset.num_categories_per_level
+            ).to(self.device)
+        else:
+            self.model = MODEL_REGISTRY[model_name](
+                num_items=dataset.num_items
+            ).to(self.device)
 
         self.loss_fn = SequenceCrossEntropyLoss()
 
@@ -69,13 +80,10 @@ class Trainer:
             + f"/best_{model_name}.pt"
         )
 
-        self.hierarchical = (
-            model_name in HIERARCHICAL_MODELS
-        )
-
-    def forward_pass(self, seq, time_seq):
+    # ĐỒNG BỘ ROUTING FORWARD: Đón nhận thêm tham số category_paths cho khối Hierarchical Category Encoder
+    def forward_pass(self, seq, time_seq, category_paths=None):
         if self.hierarchical:
-            return self.model(seq, time_seq)
+            return self.model(seq, time_seq, category_paths)
 
         return self.model(seq)
 
@@ -90,7 +98,13 @@ class Trainer:
         )
 
         for batch in progress_bar:
-            seq, time_seq, target = batch
+            # ĐỒNG BỘ UNPACK BATCH: Kiểm tra số lượng phần tử trả ra từ DataLoader để bóc tách category_paths
+            if self.hierarchical and len(batch) == 4:
+                seq, time_seq, category_paths, target = batch
+                category_paths = category_paths.to(self.device)
+            else:
+                seq, time_seq, target = batch
+                category_paths = None
 
             seq = seq.to(self.device)
             time_seq = time_seq.to(self.device)
@@ -98,7 +112,8 @@ class Trainer:
 
             self.optimizer.zero_grad()
 
-            logits = self.forward_pass(seq, time_seq)
+            # Đẩy ma trận phân cấp vào luồng forward pass
+            logits = self.forward_pass(seq, time_seq, category_paths)
 
             loss = self.loss_fn(logits, target)
 
@@ -119,6 +134,7 @@ class Trainer:
 
         return total_loss / len(self.train_loader)
 
+    # ĐỒNG BỘ ĐÁNH GIÁ (VALIDATION): Đảm bảo module evaluate_model nhận diện cấu trúc forward mới
     def validate(self):
         return evaluate_model(
             model=self.model,
@@ -126,6 +142,7 @@ class Trainer:
             device=self.device,
             model_name=self.model_name,
             top_k=self.top_k,
+            hierarchical=self.hierarchical # Truyền cờ này để hàm evaluate bóc tách batch tương tự lúc train
         )
 
     def check_early_stopping(self, results):
@@ -170,11 +187,7 @@ class Trainer:
                 f"Metrics: {results}"
             )
 
-            should_stop = self.check_early_stopping(
-                results
-            )
-
-            if should_stop:
+            if self.check_early_stopping(results):
                 print(
                     f"Early stopping triggered for "
                     f"{self.model_name}"
