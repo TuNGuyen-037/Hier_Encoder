@@ -72,6 +72,15 @@ class Amazon2023Dataset:
             processed_dir / "item_encoder.pkl"
         )
 
+        self.graph_edges = load_pickle(
+            processed_dir / "graph_edges.pkl"
+        )
+        
+        self.item_taxonomy = load_pickle(
+            processed_dir / "item_taxonomy.pkl"
+        )
+
+        
         max_seq_len = fairness_cfg["max_seq_len"]
 
         self.train_dataset = SequentialDataset(
