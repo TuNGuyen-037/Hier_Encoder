@@ -1,3 +1,4 @@
+# configs/model/ hier_nextitnet.yaml
 model:
   name: hier_nextitnet
 
