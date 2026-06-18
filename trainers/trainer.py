@@ -4,7 +4,8 @@ from tqdm import tqdm
 
 from utils import load_config, get_device, save_checkpoint
 from models import MODEL_REGISTRY
-from losses import SequenceCrossEntropyLoss
+# ĐỒNG BỘ: Import cả 2 hàm loss để sẵn sàng cấu hình động
+from losses import SequenceCrossEntropyLoss, BPRLoss
 from evaluation import evaluate_model
 from results import save_result
 
@@ -52,7 +53,12 @@ class Trainer:
                 num_items=dataset.num_items
             ).to(self.device)
 
-        self.loss_fn = SequenceCrossEntropyLoss()
+        # ĐỒNG BỘ LOSS FUNCTION ĐỘNG: Lấy cấu hình từ YAML, hỗ trợ switch nhanh giữa CE và BPR trên Kaggle
+        loss_type = train_cfg.get("loss_type", "ce").lower()
+        if loss_type == "bpr":
+            self.loss_fn = BPRLoss()
+        else:
+            self.loss_fn = SequenceCrossEntropyLoss()
 
         self.optimizer = torch.optim.AdamW(
             self.model.parameters(),
@@ -95,6 +101,7 @@ class Trainer:
         progress_bar = tqdm(
             self.train_loader,
             desc=f"Training {self.model_name}",
+            leave=False # Giữ màn hình terminal sạch sẽ khi chạy hàng nghìn Epochs
         )
 
         for batch in progress_bar:
@@ -174,26 +181,29 @@ class Trainer:
         )
 
     def fit(self):
-        print(f"\nTraining model: {self.model_name}")
+        print(f"\n--- Khởi chạy Huấn luyện Mô hình: {self.model_name} ---")
+        print(f"Hàm mục tiêu (Loss Function): {self.loss_fn.__class__.__name__}")
 
         for epoch in range(1, self.epochs + 1):
             train_loss = self.train_one_epoch()
 
             results = self.validate()
 
+            # Format lại log in ra cho tường minh, dễ copy vào bảng thực nghiệm đồ án
+            metrics_str = ", ".join([f"{k}: {v:.4f}" for k, v in results.items()])
             print(
-                f"Epoch {epoch} | "
-                f"Loss: {train_loss:.4f} | "
-                f"Metrics: {results}"
+                f"Epoch {epoch:03d}/{self.epochs} | "
+                f"Train Loss: {train_loss:.4f} | "
+                f"Val Metrics -> {metrics_str}"
             )
 
             if self.check_early_stopping(results):
                 print(
-                    f"Early stopping triggered for "
-                    f"{self.model_name}"
+                    f"[Early Stopping] Kích hoạt tại Epoch {epoch}. "
+                    f"Kết quả {self.early_stopping_metric} tốt nhất: {self.best_metric:.4f}"
                 )
                 break
 
         print(
-            f"Finished training {self.model_name}"
+            f"Hoàn thành Benchmark cho mô hình: {self.model_name}\n"
         )
