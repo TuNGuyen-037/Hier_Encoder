@@ -7,6 +7,7 @@ model:
   n_blocks: 2
   dropout: 0.2
 
+  # Cấu hình khối Encoder phân cấp kết hợp đồ thị
   use_time_embedding: true
   use_attention_pooling: true
   use_gate: true
