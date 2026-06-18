@@ -1,6 +1,7 @@
 # ============================================================
 # FAIRNESS PROTOCOL
 # Locked settings for fair model comparison
+# configs/fairness.yaml
 # ============================================================
 fairness:
   embedding_dim: 128
