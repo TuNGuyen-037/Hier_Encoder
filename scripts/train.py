@@ -1,3 +1,5 @@
+# scripts/train.py
+
 import argparse
 
 from utils import set_seed, load_config
