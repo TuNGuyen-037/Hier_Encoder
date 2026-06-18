@@ -5,6 +5,7 @@ model:
   n_layers: 2
   dropout: 0.1
 
+  # Cấu hình nhánh tích hợp của HierGNN
   use_time_embedding: true
   use_attention_pooling: true
   use_gate: true
