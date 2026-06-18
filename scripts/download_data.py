@@ -1,3 +1,4 @@
+# scripts/download_data.py
 from pathlib import Path
 import urllib.request
 
