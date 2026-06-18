@@ -10,6 +10,7 @@ model:
   use_time_embedding: true
   use_causal_mask: true
 
+  # Cấu hình điều phối thông tin phân cấp đa tầng danh mục
   use_time_decay: true
   use_attention_pooling: true
   use_gate: true
