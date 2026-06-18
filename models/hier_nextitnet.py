@@ -3,55 +3,12 @@ import torch
 import torch.nn as nn
 
 from utils import load_config
-
-
-class ResidualBlock(nn.Module):
-    def __init__(self, channels, kernel_size, dilation, dropout):
-        super().__init__()
-
-        padding = (kernel_size - 1) * dilation
-
-        self.conv1 = nn.Conv1d(
-            channels,
-            channels,
-            kernel_size,
-            padding=padding,
-            dilation=dilation,
-        )
-
-        self.conv2 = nn.Conv1d(
-            channels,
-            channels,
-            kernel_size,
-            padding=padding,
-            dilation=dilation,
-        )
-
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(dropout)
-
-    def crop(self, x, target_len):
-        return x[:, :, -target_len:]
-
-    def forward(self, x):
-        residual = x
-        target_len = x.size(-1)
-
-        out = self.conv1(x)
-        out = self.crop(out, target_len)
-        out = self.relu(out)
-        out = self.dropout(out)
-
-        out = self.conv2(out)
-        out = self.crop(out, target_len)
-        out = self.relu(out)
-        out = self.dropout(out)
-
-        return out + residual
+from .nextitnet import ResidualBlock
+from .hier_encoder import HierarchicalCategoryEncoder
 
 
 class HierNextItNet(nn.Module):
-    def __init__(self, num_items):
+    def __init__(self, num_items, num_categories_per_level):
         super().__init__()
 
         cfg = load_config("hier_nextitnet")
@@ -77,23 +34,21 @@ class HierNextItNet(nn.Module):
             embedding_dim,
             padding_idx=0,
         )
+        
+        # Khối Encoder Phân cấp Danh mục
+        self.hier_encoder = HierarchicalCategoryEncoder(
+            num_categories_per_level=num_categories_per_level,
+            embedding_dim=embedding_dim,
+            max_depth=3
+        )
+        
+        # Khối Fusion Gate
+        self.fusion_gate = nn.Linear(embedding_dim * 2, embedding_dim)
 
-        short_blocks = []
-        long_blocks = []
-
-        for dilation in dilations:
-            short_blocks.append(
-                ResidualBlock(
-                    embedding_dim,
-                    kernel_size,
-                    dilation,
-                    dropout,
-                )
-            )
-
+        blocks = []
         for _ in range(n_blocks):
             for dilation in dilations:
-                long_blocks.append(
+                blocks.append(
                     ResidualBlock(
                         embedding_dim,
                         kernel_size,
@@ -102,65 +57,40 @@ class HierNextItNet(nn.Module):
                     )
                 )
 
-        self.short_network = nn.Sequential(*short_blocks)
-        self.long_network = nn.Sequential(*long_blocks)
-
-        self.attention = nn.Sequential(
-            nn.Linear(embedding_dim, embedding_dim),
-            nn.Tanh(),
-            nn.Linear(embedding_dim, 1),
-        )
-
-        self.gate = nn.Linear(
-            embedding_dim * 2,
-            embedding_dim,
-        )
+        self.network = nn.Sequential(*blocks)
 
         self.output = nn.Linear(
             embedding_dim,
             num_items,
         )
 
-    def attention_pool(self, x):
-        scores = self.attention(x)
-        weights = torch.softmax(scores, dim=1)
-        pooled = (weights * x).sum(dim=1)
-        return pooled
-
-    def forward(self, seq, time_seq):
+    def forward(self, seq, time_seq, category_paths):
         """
         seq: [B, L]
         time_seq: [B, L]
+        category_paths: [B, L, max_depth]
         """
-
         item_emb = self.item_embedding(seq)
         time_emb = self.time_embedding(time_seq)
+        
+        # Trích xuất biểu diễn đặc trưng phân cấp danh mục
+        hier_emb = self.hier_encoder(category_paths)
 
-        x = item_emb + time_emb
+        base_features = item_emb + time_emb
+        
+        # Khối Fusion Module tích hợp đặc trưng phân cấp danh mục cây
+        combined = torch.cat([base_features, hier_emb], dim=-1)
+        gate = torch.sigmoid(self.fusion_gate(combined))
+        x = gate * base_features + (1.0 - gate) * hier_emb
 
-        short_input = x[:, -10:, :]
-        short_input = short_input.transpose(1, 2)
+        # Chuyển đổi chiều để đưa vào Conv1D mạng NextItNet [B, d, L]
+        x = x.transpose(1, 2)
 
-        short_out = self.short_network(short_input)
-        short_out = short_out.transpose(1, 2)
+        x = self.network(x)
 
-        short_hidden = short_out[:, -1, :]
+        x = x.transpose(1, 2)
 
-        long_input = x.transpose(1, 2)
-
-        long_out = self.long_network(long_input)
-        long_out = long_out.transpose(1, 2)
-
-        long_hidden = self.attention_pool(long_out)
-
-        fusion = torch.cat(
-            [short_hidden, long_hidden],
-            dim=-1,
-        )
-
-        gate = torch.sigmoid(self.gate(fusion))
-
-        hidden = gate * short_hidden + (1.0 - gate) * long_hidden
+        hidden = x[:, -1, :]
 
         logits = self.output(hidden)
 
