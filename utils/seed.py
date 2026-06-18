@@ -5,6 +5,9 @@ import torch
 
 
 def set_seed(seed=42, deterministic=False):
+    """
+    Khóa seed hệ thống để đồng bộ kết quả giữa các lần chạy Benchmark.
+    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -13,5 +16,10 @@ def set_seed(seed=42, deterministic=False):
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
-    torch.backends.cudnn.benchmark = not deterministic
-    torch.backends.cudnn.deterministic = deterministic
+    if deterministic:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    else:
+        # Bật benchmark để tối ưu tốc độ tính toán ma trận tuần hoàn (RNN/Transformer) nếu không yêu cầu chặt chẽ
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.benchmark = True
