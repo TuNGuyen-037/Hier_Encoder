@@ -1,3 +1,4 @@
+# configs/model/gru4rec.yaml
 model:
   name: gru4rec
 
