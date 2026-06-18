@@ -4,7 +4,6 @@ from tqdm import tqdm
 
 from utils import load_config, get_device, save_checkpoint
 from models import MODEL_REGISTRY
-# ĐỒNG BỘ: Import cả 2 hàm loss để sẵn sàng cấu hình động
 from losses import SequenceCrossEntropyLoss, BPRLoss
 from evaluation import evaluate_model
 from results import save_result
@@ -42,7 +41,6 @@ class Trainer:
             model_name in HIERARCHICAL_MODELS
         )
 
-        # ĐỒNG BỘ KHỞI TẠO: Kiểm tra nếu là mô hình Hierarchical thì truyền thêm danh sách category levels từ dataset
         if self.hierarchical:
             self.model = MODEL_REGISTRY[model_name](
                 num_items=dataset.num_items,
@@ -53,7 +51,6 @@ class Trainer:
                 num_items=dataset.num_items
             ).to(self.device)
 
-        # ĐỒNG BỘ LOSS FUNCTION ĐỘNG: Lấy cấu hình từ YAML, hỗ trợ switch nhanh giữa CE và BPR trên Kaggle
         loss_type = train_cfg.get("loss_type", "ce").lower()
         if loss_type == "bpr":
             self.loss_fn = BPRLoss()
@@ -86,7 +83,6 @@ class Trainer:
             + f"/best_{model_name}.pt"
         )
 
-    # ĐỒNG BỘ ROUTING FORWARD: Đón nhận thêm tham số category_paths cho khối Hierarchical Category Encoder
     def forward_pass(self, seq, time_seq, category_paths=None):
         if self.hierarchical:
             return self.model(seq, time_seq, category_paths)
@@ -101,11 +97,10 @@ class Trainer:
         progress_bar = tqdm(
             self.train_loader,
             desc=f"Training {self.model_name}",
-            leave=False # Giữ màn hình terminal sạch sẽ khi chạy hàng nghìn Epochs
+            leave=False
         )
 
         for batch in progress_bar:
-            # ĐỒNG BỘ UNPACK BATCH: Kiểm tra số lượng phần tử trả ra từ DataLoader để bóc tách category_paths
             if self.hierarchical and len(batch) == 4:
                 seq, time_seq, category_paths, target = batch
                 category_paths = category_paths.to(self.device)
@@ -119,7 +114,6 @@ class Trainer:
 
             self.optimizer.zero_grad()
 
-            # Đẩy ma trận phân cấp vào luồng forward pass
             logits = self.forward_pass(seq, time_seq, category_paths)
 
             loss = self.loss_fn(logits, target)
@@ -141,7 +135,6 @@ class Trainer:
 
         return total_loss / len(self.train_loader)
 
-    # ĐỒNG BỘ ĐÁNH GIÁ (VALIDATION): Đảm bảo module evaluate_model nhận diện cấu trúc forward mới
     def validate(self):
         return evaluate_model(
             model=self.model,
@@ -149,10 +142,11 @@ class Trainer:
             device=self.device,
             model_name=self.model_name,
             top_k=self.top_k,
-            hierarchical=self.hierarchical # Truyền cờ này để hàm evaluate bóc tách batch tương tự lúc train
+            hierarchical=self.hierarchical
         )
 
-    def check_early_stopping(self, results):
+    # ĐÃ VÁ LỖI: Nhận thêm biến `epoch` từ vòng lặp để truyền vào save_checkpoint một cách hợp lệ
+    def check_early_stopping(self, results, epoch):
         metric_value = results[
             self.early_stopping_metric
         ]
@@ -161,9 +155,13 @@ class Trainer:
             self.best_metric = metric_value
             self.patience_counter = 0
 
+            # Biến epoch và self.best_metric giờ đã được định nghĩa tường minh để lưu trữ dữ liệu
             save_checkpoint(
                 self.model,
                 self.best_model_path,
+                optimizer=self.optimizer,
+                epoch=epoch,
+                best_metric=self.best_metric
             )
 
             save_result(
@@ -189,7 +187,6 @@ class Trainer:
 
             results = self.validate()
 
-            # Format lại log in ra cho tường minh, dễ copy vào bảng thực nghiệm đồ án
             metrics_str = ", ".join([f"{k}: {v:.4f}" for k, v in results.items()])
             print(
                 f"Epoch {epoch:03d}/{self.epochs} | "
@@ -197,7 +194,8 @@ class Trainer:
                 f"Val Metrics -> {metrics_str}"
             )
 
-            if self.check_early_stopping(results):
+            # ĐÃ VÁ LỖI: Truyền thêm giá trị epoch hiện tại vào hàm kiểm tra
+            if self.check_early_stopping(results, epoch):
                 print(
                     f"[Early Stopping] Kích hoạt tại Epoch {epoch}. "
                     f"Kết quả {self.early_stopping_metric} tốt nhất: {self.best_metric:.4f}"
