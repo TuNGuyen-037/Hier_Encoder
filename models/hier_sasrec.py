@@ -3,10 +3,11 @@ import torch
 import torch.nn as nn
 
 from utils import load_config
+from .hier_encoder import HierarchicalCategoryEncoder
 
 
 class HierSASRec(nn.Module):
-    def __init__(self, num_items):
+    def __init__(self, num_items, num_categories_per_level):
         super().__init__()
 
         cfg = load_config("hier_sasrec")
@@ -37,6 +38,16 @@ class HierSASRec(nn.Module):
             max_seq_len,
             embedding_dim,
         )
+        
+        # Khối Encoder Phân cấp Danh mục
+        self.hier_encoder = HierarchicalCategoryEncoder(
+            num_categories_per_level=num_categories_per_level,
+            embedding_dim=embedding_dim,
+            max_depth=3
+        )
+        
+        # Khối Fusion Gate
+        self.fusion_gate = nn.Linear(embedding_dim * 2, embedding_dim)
 
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=embedding_dim,
@@ -45,25 +56,9 @@ class HierSASRec(nn.Module):
             batch_first=True,
         )
 
-        self.short_encoder = nn.TransformerEncoder(
-            encoder_layer,
-            num_layers=1,
-        )
-
-        self.long_encoder = nn.TransformerEncoder(
+        self.encoder = nn.TransformerEncoder(
             encoder_layer,
             num_layers=n_layers,
-        )
-
-        self.attention = nn.Sequential(
-            nn.Linear(embedding_dim, embedding_dim),
-            nn.Tanh(),
-            nn.Linear(embedding_dim, 1),
-        )
-
-        self.gate = nn.Linear(
-            embedding_dim * 2,
-            embedding_dim,
         )
 
         self.dropout = nn.Dropout(dropout)
@@ -80,18 +75,12 @@ class HierSASRec(nn.Module):
         )
         return mask.bool()
 
-    def attention_pool(self, x):
-        scores = self.attention(x)
-        weights = torch.softmax(scores, dim=1)
-        pooled = (weights * x).sum(dim=1)
-        return pooled
-
-    def forward(self, seq, time_seq):
+    def forward(self, seq, time_seq, category_paths):
         """
         seq: [B, L]
         time_seq: [B, L]
+        category_paths: [B, L, max_depth]
         """
-
         batch_size, seq_len = seq.size()
 
         positions = torch.arange(
@@ -102,38 +91,26 @@ class HierSASRec(nn.Module):
         item_emb = self.item_embedding(seq)
         time_emb = self.time_embedding(time_seq)
         pos_emb = self.position_embedding(positions)
+        
+        # Trích xuất biểu diễn đặc trưng cây phân cấp
+        hier_emb = self.hier_encoder(category_paths)
 
-        x = item_emb + time_emb + pos_emb
-        x = self.dropout(x)
+        base_features = item_emb + time_emb + pos_emb
+        base_features = self.dropout(base_features)
+
+        # Khối Fusion Module tích hợp thông tin danh mục phân cấp trước Transformer Encoder
+        combined = torch.cat([base_features, hier_emb], dim=-1)
+        gate = torch.sigmoid(self.fusion_gate(combined))
+        x = gate * base_features + (1.0 - gate) * hier_emb
 
         mask = self.causal_mask(seq_len, seq.device)
 
-        short_input = x[:, -10:, :]
-        short_mask = self.causal_mask(short_input.size(1), seq.device)
-
-        short_out = self.short_encoder(
-            short_input,
-            mask=short_mask,
-        )
-
-        short_hidden = short_out[:, -1, :]
-
-        long_out = self.long_encoder(
+        x = self.encoder(
             x,
             mask=mask,
         )
 
-        long_hidden = self.attention_pool(long_out)
-
-        fusion = torch.cat(
-            [short_hidden, long_hidden],
-            dim=-1,
-        )
-
-        gate = torch.sigmoid(self.gate(fusion))
-
-        hidden = gate * short_hidden + (1.0 - gate) * long_hidden
-
+        hidden = x[:, -1, :]
         logits = self.output(hidden)
 
         return logits
